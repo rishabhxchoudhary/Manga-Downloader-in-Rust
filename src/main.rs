@@ -7,6 +7,10 @@ use url;
 use reqwest::header::HeaderMap;
 use std::fs::File;
 use std::thread;
+use image::open;
+use image::ImageFormat;
+use jpeg_to_pdf::JpegToPdf;
+use std::io::BufWriter;
 
 fn get_request_headers(url: &str) -> Result<HeaderMap, url::ParseError> {
     let domain = url::Url::parse(url)?.host_str().unwrap().to_string();
@@ -29,6 +33,8 @@ fn download_image(name: &str,url: &str) -> Result<(), Box<dyn std::error::Error>
         let mut file = File::create(name)?;
         response.copy_to(&mut file)?;
     }
+    let image_file = open(name)?;
+    image_file.save_with_format(name, ImageFormat::Jpeg)?;
     Ok(())
 }
 
@@ -71,6 +77,23 @@ fn download_manga(name: &str, url:&str) -> Result<(), Box<dyn std::error::Error>
     for handle in handles {
         handle.join().unwrap();
     }
+    let outfile = fs::File::create(name.to_string() + ".pdf")?;
+    let mut pdf = JpegToPdf::new();
+    for i in 0..pages.len() {
+        let image_path = format!("{}.jpg", i);
+        match fs::read(&image_path) {
+            Ok(image_data) => {
+                pdf = pdf.add_image(image_data);
+            }
+            Err(err) => {
+                eprintln!("Failed to read image {}: {}", image_path, err);
+            }
+        }
+    }
+    pdf.create_pdf(&mut BufWriter::new(outfile))?;
+    let pdf_path = format!("{}/{}.pdf", std::env::current_dir()?.display(), name);
+    fs::copy(pdf_path, format!("{}/{}.pdf", cur_path.display(), name))?;
+    fs::remove_dir_all(&path)?;
     std::env::set_current_dir(&cur_path)?;
     Ok(())
 }
@@ -100,11 +123,10 @@ fn sort_chapters(chapters: Vec<(String, String)>) -> Vec<(String, String)> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>>{
-    // println!("Enter the URL of the manga: ");
-    // let mut url = String::new();
-    // std::io::stdin().read_line(&mut url).unwrap();
-    // let url = url.trim();    
-    let url = "https://ww8.manganelo.tv/manga/manga-wd951838";
+    println!("Enter the URL of the manga from https://ww8.manganelo.tv : ");
+    let mut url = String::new();
+    std::io::stdin().read_line(&mut url).unwrap();
+    let url = url.trim();    
     let domain = url::Url::parse(url).unwrap().host_str().unwrap().to_string();
     let host_url = "https://".to_string() + &domain;
     let chapters = chapter_links(url).unwrap();
@@ -115,5 +137,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>>{
         let link = host_url.clone() + &link;
         download_manga(&name, &link)?;
     }
+
     Ok(())
 }
