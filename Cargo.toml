@@ -1,0 +1,13 @@
+[package]
+name = "web_scraping"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+reqwest = { version = "0.12.5", features = ["blocking", "json"] }
+scraper = "0.19.0"
+tokio = { version = "1.38.0", features = ["full"] }
+regex = "1.10.5"
+url = "2.5.2"
+printpdf = "0.7.0"
+image = "0.25.1"
